@@ -1,0 +1,224 @@
+
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <title>سامانه موقعیت‌یاب سیاوش</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      padding: 50px 20px;
+      font-family: Tahoma, sans-serif;
+      background: #0e1621 url('wanted_siavash.jpg') repeat-y center top scroll;
+      animation: moveBackground 30s linear infinite;
+      background-size: 100% auto;
+      color: white;
+      overflow-y: auto;
+      text-align: center;
+    }
+    .overlay {
+      background-color: rgba(0, 0, 0, 0.6);
+      padding: 30px 20px;
+      border-radius: 12px;
+      max-width: 700px;
+      margin: 40px auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      backdrop-filter: blur(3px);
+      background-color: rgba(0, 0, 0, 0.6);
+      padding: 40px 20px;
+      border-radius: 12px;
+      max-width: 800px;
+      margin: auto;
+      box-shadow: 0 0 20px rgba(0,0,0,0.6);
+    }
+    h1 {
+      font-size: 1.8em;
+      color: #00d8ff;
+      margin-bottom: 20px;
+    }
+    button {
+      background: linear-gradient(145deg, #ff6b81, #ff4757);
+      border: none;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 1.1em;
+      color: white;
+      cursor: pointer;
+      margin: 10px;
+    }
+    button:hover {
+      transform: scale(1.05);
+    }
+    .countdownBox {
+      font-size: 1.1em;
+      font-size: 1.1em;
+      color: #ffcc00;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    #notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ffcc00;
+      color: #000;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: bold;
+      display: none;
+      z-index: 1000;
+    }
+    #loader {
+      display: none;
+      margin: 20px auto;
+    }
+    .spinner {
+      border: 6px solid #00d8ff;
+      border-top: 6px solid transparent;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  
+    @keyframes moveBackground {
+      0% { background-position: center top; }
+      100% { background-position: center bottom; }
+    }
+    #output {
+      font-size: 1.4em;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    </style>
+</head>
+<body>
+  <div id="notification"></div>
+  <div class="overlay">
+    <h1>سامانه موقعیت‌یاب سیاوش</h1>
+    <button id="locateBtn">یافتن سیاوش</button>
+    <div id="loader"><div class="spinner"></div></div>
+    <div id="output"></div>
+    <div id="outputCountdown" class="countdownBox"></div>
+  </div>
+
+  <div class="overlay" style="margin-top:40px;">
+    <h2>بازی پیدا کردن سیاوش</h2>
+    <p>سیاوش در یکی از این مکان‌ها پنهان شده؛ حدس بزن کجاست:</p>
+    <button class="guessBtn" data-location="determine">طبقه دو پیش بچه‌های تعیین ماهیت</button>
+    <button class="guessBtn" data-location="cafe">کافه نفت</button>
+    <button class="guessBtn" data-location="storage">انباری تجهیزات</button>
+    <div id="gameOutput"></div>
+    <div id="countdown" class="countdownBox"></div>
+  </div>
+
+  <script>
+    const responses = [
+      "سیاوش در حال تعمیر مودم با ضربات روحی است...",
+      "در طبقه دو پیش بچه‌های تعیین ماهیت ناپدید شد، فقط رد کفش مانده",
+      "آخرین مشاهده: پشت دستگاه اسپرسو با چشمانی نگران",
+      "پیش آقای شیشه ریز بود، حالا اقای شیشه ریز کجاست؟",
+      "رفته کارتریج پرینتر رو درست کنه فک کنم طبقه سومه",
+      "شایعه شده در پارکینگ با لپ‌تاپ در حال فرار بود",
+      "آخرین بار در حد فاصله بین خانوم نظری تا اتاق خانوم مهندس دیده شده",
+      "الان باید پیش هومن باشه .. اینو ولش کن، املت میزنی؟",
+      "سیاوش در حال باز کردن در دیتا سنتر با کارت تلفن است!"
+    ];
+
+    const locations = [
+      { key: "determine", text: "سیاوش در طبقه دو پیش بچه‌های تعیین ماهیت مشغول بررسی نمونه‌ها بود!" },
+      { key: "cafe", text: "سیاوش در کافه نفت دیده شد در حال نوشیدن اسپرسو!" },
+      { key: "storage", text: "سیاوش در انباری تجهیزات بین جعبه‌ها دنبال کابل می‌گشت!" }
+    ];
+
+    let guessLocked = false;
+    let locateTimerHandle;
+    let timerHandle;
+
+    function showNotification(msg) {
+      const note = document.getElementById("notification");
+      note.textContent = msg;
+      note.style.display = "block";
+      setTimeout(() => { note.style.display = "none"; }, 3000);
+    }
+
+    document.getElementById("locateBtn").addEventListener("click", function () {
+      const output = document.getElementById("output");
+      const countdown = document.getElementById("outputCountdown");
+      const loader = document.getElementById("loader");
+
+      clearInterval(locateTimerHandle);
+      output.textContent = "";
+      countdown.textContent = "";
+      loader.style.display = "block";
+
+      const msg = responses[Math.floor(Math.random() * responses.length)];
+
+      setTimeout(() => {
+        loader.style.display = "none";
+        output.textContent = msg;
+
+        let timeLeft = 5;
+        countdown.textContent = `زمان باقی‌مانده تا ناپدید شدن سیاوش: ${timeLeft}`;
+        locateTimerHandle = setInterval(() => {
+          timeLeft--;
+          countdown.textContent = `زمان باقی‌مانده تا ناپدید شدن سیاوش: ${timeLeft}`;
+          if (timeLeft === 0) {
+            clearInterval(locateTimerHandle);
+            output.textContent = "";
+            countdown.textContent = "";
+            showNotification("سیاوش دوباره ناپدید شد. لطفاً دوباره جستجو کنید!");
+          }
+        }, 1000);
+      }, 1500);
+    });
+
+    document.querySelectorAll(".guessBtn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (guessLocked) return;
+        const output = document.getElementById("gameOutput");
+        const countdown = document.getElementById("countdown");
+
+        if (!timerHandle) {
+          let timeLeft = 5;
+          countdown.textContent = `زمان باقی‌مانده تا ناپدید شدن سیاوش: ${timeLeft}`;
+          timerHandle = setInterval(() => {
+            timeLeft--;
+            countdown.textContent = `زمان باقی‌مانده تا ناپدید شدن سیاوش: ${timeLeft}`;
+            if (timeLeft === 0) {
+              clearInterval(timerHandle);
+              timerHandle = null;
+              output.textContent = "";
+              countdown.textContent = "";
+              showNotification("زمان حدس شما به پایان رسید!");
+            }
+          }, 1000);
+        }
+
+        const random = locations[Math.floor(Math.random() * locations.length)];
+        const guess = btn.getAttribute("data-location");
+
+        if (guess === random.key) {
+          output.textContent = "✅ آفرین! " + random.text;
+          clearInterval(timerHandle);
+          timerHandle = null;
+          guessLocked = true;
+          setTimeout(() => {
+            output.textContent = "";
+            countdown.textContent = "";
+            guessLocked = false;
+          }, 4000);
+        } else {
+          output.textContent = "❌ نه! اینجا فقط یه سیم اضافه و یه صندلی خالی پیدا شد!";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
